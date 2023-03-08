@@ -1,5 +1,7 @@
 import os
 import time
+import requests
+
 from dotenv import main
 
 from selenium import webdriver
@@ -9,6 +11,7 @@ from selenium.webdriver.common.by import By
 from utils.directory import create_directory, create_directories
 from utils.files import write
 
+
 main.load_dotenv()
 
 website_link = os.getenv('WEBSITE_LINK')
@@ -16,6 +19,9 @@ parent_folder = os.getenv('PARENT_FOLDER')
 
 # start web driver
 driver = webdriver.Chrome(os.getenv('CHROME_DRIVER_PATH'))
+
+print('START:: HTML')
+
 driver.get(website_link)
 assert "Class Central" in driver.title
 
@@ -44,11 +50,15 @@ for link in links:
             'path': path.encode('utf-8')
         })
         
+counter = 0;
+        
 for detail in link_details:
     href = detail['href']
     path = detail['path']
     
-    print(href, path)
+    
+    counter += 1;
+    print('SCRAPING::', href, path, counter, len(link_details))
     
     driver.get(href)
         
@@ -61,8 +71,8 @@ for detail in link_details:
     # create index file
     write(inner_index_file, 'w', '<!DOCTYPE html>')
     write(inner_index_file, 'a', inner_html.encode('utf-8') )
-        
-print(link_details)
+    
+print('FINISHED:: HTML')
 
 assert "No results found." not in driver.page_source
 
