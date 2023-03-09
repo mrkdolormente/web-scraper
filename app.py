@@ -7,6 +7,7 @@ from dotenv import main
 from selenium import webdriver
 from selenium.webdriver.common.keys import Keys
 from selenium.webdriver.common.by import By
+from selenium.webdriver.chrome.service import Service
 
 from utils.directory import create_directory, create_directories
 from utils.files import write
@@ -18,7 +19,7 @@ website_link = os.getenv('WEBSITE_LINK')
 parent_folder = os.getenv('PARENT_FOLDER')
 
 # start web driver
-driver = webdriver.Chrome(os.getenv('CHROME_DRIVER_PATH'))
+driver = webdriver.Chrome(service=Service(os.getenv('CHROME_DRIVER_PATH')))
 
 print('START:: HTML')
 
@@ -35,7 +36,7 @@ index_file = parent_folder + '/index.html'
 
 # create index file
 write(index_file, 'w', '<!DOCTYPE html>')
-write(index_file, 'a',html.encode('utf-8') )
+write(index_file, 'a',html )
 
 # scrape links
 links = driver.find_elements(By.TAG_NAME, 'a')
@@ -48,8 +49,8 @@ for link in links:
     
     if website_link in href and path:
         link_details.append({
-            'href': href.encode('utf-8'),
-            'path': path.encode('utf-8')
+            'href': href,
+            'path': path
         })
         
 counter = 0;
@@ -64,7 +65,7 @@ for detail in link_details:
     
     driver.get(href)
         
-    relative_path = parent_folder + '/' + path.encode('utf-8');
+    relative_path = parent_folder + '/' + path;
     inner_index_file = relative_path + '/' + 'index.html'
     inner_html = driver.page_source
     
@@ -72,7 +73,7 @@ for detail in link_details:
     
     # create index file
     write(inner_index_file, 'w', '<!DOCTYPE html>')
-    write(inner_index_file, 'a', inner_html.encode('utf-8') )
+    write(inner_index_file, 'a', inner_html )
     
 print('FINISHED:: HTML')
 
@@ -103,7 +104,7 @@ file_counter = 0
 downloaded_files = []
 
 for link in file_links:
-    file = link.encode('utf-8')
+    file = link
     
     if file not in downloaded_files:
         file_folders = file.split('/')
