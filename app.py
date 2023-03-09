@@ -1,6 +1,6 @@
 import os
-import time
-import requests
+import re
+import wget
 
 from dotenv import main
 
@@ -24,6 +24,8 @@ print('START:: HTML')
 
 driver.get(website_link)
 assert "Class Central" in driver.title
+
+driver.execute_script("window.scrollTo(0,document.body.scrollHeight)")
 
 # generate scraped directory
 create_directory(parent_folder)
@@ -73,6 +75,50 @@ for detail in link_details:
     write(inner_index_file, 'a', inner_html.encode('utf-8') )
     
 print('FINISHED:: HTML')
+
+print('START:: FILES')
+
+driver.get(website_link)
+assert "Class Central" in driver.title
+
+file_links = [];
+
+script_links = [];
+script_elements = driver.find_elements(By.TAG_NAME, 'script')
+
+for element in script_elements:
+    script = element.get_attribute('src')
+    print(script)
+    if website_link in script:
+        script_links.append(script.replace(website_link, ''))
+        
+file_links.extend(script_links)
+
+html = driver.page_source
+font_links = re.findall("url\(/(.*?)\) format\(\"woff2\"\)", html)
+
+file_links.extend(font_links)
+
+file_counter = 0
+downloaded_files = []
+
+for link in file_links:
+    file = link.encode('utf-8')
+    
+    if file not in downloaded_files:
+        file_folders = file.split('/')
+        file_folders.pop();
+        
+        create_directories(parent_folder + '/' + '/'.join(file_folders))
+        
+        wget.download(website_link + file, parent_folder + '/' + file)
+        
+        downloaded_files.append(file)
+        
+        file_counter += 1
+        print('DOWNLOADED::', parent_folder + '/' + file, file_counter, len(file_links))
+        
+print('FINISHED:: FILES')
 
 assert "No results found." not in driver.page_source
 
