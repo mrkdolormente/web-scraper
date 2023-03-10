@@ -136,3 +136,21 @@ def scripts(driver):
         write(parent_folder + '/' + path, 'w', jsscript, 'utf-8')
 
     print('FINISHED:: SCRIPTS')
+    
+def manifest(driver):
+    print('START:: MANIFEST')
+    
+    driver.get(website_link)
+    assert "Class Central" in driver.title
+    
+    script_element = driver.find_element(By.CSS_SELECTOR, 'link[rel="manifest"]')
+    
+    if script_element:
+        href = script_element.get_attribute('href')
+        
+        headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 6.1; WOW64; rv:50.0) Gecko/20100101 Firefox/50.0'}
+        response = requests.get(href, headers=headers)
+        
+        write(parent_folder + '/' + href.replace(website_link, ''), 'wb', response.content)
+    
+    print('FINISHED:: MANIFEST')
