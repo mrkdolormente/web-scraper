@@ -1,4 +1,4 @@
-def write(file_path, method, text):
-    f = open(file_path, method)
-    f.write(text)
-    f.close()
+def write(file_path, method, content, encoding=None):
+    with open(file_path, method, encoding=encoding) as f:
+        f.write(content)
+        f.close()
