@@ -7,6 +7,8 @@ from selenium.webdriver.common.by import By
 
 from utils.directory import create_directories
 from utils.files import write, download
+from utils.translate import page
+
 
 
 main.load_dotenv()
@@ -24,10 +26,15 @@ def html(driver):
 
     html = driver.page_source
     index_file = parent_folder + '/index.html'
+    
+    language = os.getenv('TRANSLATE_LANG')
+    
+    # translate page to hindi
+    translated_html = page(html, language)
 
     # create index file
     write(index_file, 'w', '<!DOCTYPE html>')
-    write(index_file, 'a', html)
+    write(index_file, 'a', translated_html, 'utf-8')
 
     # scrape links
     links = driver.find_elements(By.TAG_NAME, 'a')
@@ -62,9 +69,12 @@ def html(driver):
         
         create_directories(relative_path) 
         
+        # translate page to hindi
+        translated_html = page(inner_html, language)
+        
         # create index file
         write(inner_index_file, 'w', '<!DOCTYPE html>')
-        write(inner_index_file, 'a', inner_html, "utf-8" )
+        write(inner_index_file, 'a', translated_html, "utf-8" )
         
     print('FINISHED:: HTML')
 
