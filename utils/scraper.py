@@ -1,13 +1,12 @@
 import os
 import re
-import requests
 
 from dotenv import main
 
 from selenium.webdriver.common.by import By
 
 from utils.directory import create_directories
-from utils.files import write
+from utils.files import write, download
 
 
 main.load_dotenv()
@@ -21,7 +20,7 @@ def html(driver):
     driver.get(website_link)
     assert "Class Central" in driver.title
 
-    driver.execute_script("window.scrollTo(0,document.body.scrollHeight)")
+    driver.execute_script("window.scrollTo({ left: 0, top: document.body.scrollHeight, behavior: \"smooth\" })")
 
     html = driver.page_source
     index_file = parent_folder + '/index.html'
@@ -94,8 +93,7 @@ def fonts(driver):
             create_directories(parent_folder + '/' + '/'.join(font_folders))
             print(website_link + font, parent_folder + '/' + font)
             
-            headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 6.1; WOW64; rv:50.0) Gecko/20100101 Firefox/50.0'}
-            response = requests.get(website_link + font, headers=headers)
+            response = download(website_link + font)
             
             write(parent_folder + '/' + font, 'wb', response.content)
             
@@ -137,20 +135,24 @@ def scripts(driver):
 
     print('FINISHED:: SCRIPTS')
     
-def manifest(driver):
-    print('START:: MANIFEST')
+def link_rel(driver):
+    print('START:: LINK_REL')
     
     driver.get(website_link)
     assert "Class Central" in driver.title
     
-    script_element = driver.find_element(By.CSS_SELECTOR, 'link[rel="manifest"]')
+    rel_list = ['manifest', 'apple-touch-icon', 'icon', 'mask-icon', 'search']
     
-    if script_element:
-        href = script_element.get_attribute('href')
+    for rel in rel_list:
+        script_element = driver.find_element(By.CSS_SELECTOR, 'link[rel="'+ rel +'"]')
         
-        headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 6.1; WOW64; rv:50.0) Gecko/20100101 Firefox/50.0'}
-        response = requests.get(href, headers=headers)
-        
-        write(parent_folder + '/' + href.replace(website_link, ''), 'wb', response.content)
+        if script_element:
+            href = script_element.get_attribute('href')
+            
+            print('DOWNLOADING::', rel, href)
+            
+            response = download(href)
+            
+            write(parent_folder + '/' + href.replace(website_link, ''), 'wb', response.content)
     
-    print('FINISHED:: MANIFEST')
+    print('FINISHED:: LINK_REL')

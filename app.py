@@ -6,7 +6,7 @@ from selenium import webdriver
 from selenium.webdriver.chrome.service import Service
 
 from utils.directory import create_directory
-from utils.scraper import fonts, html, manifest, scripts
+from utils.scraper import fonts, html, link_rel, scripts
 
 main.load_dotenv()
     
@@ -24,8 +24,8 @@ def main():
     #scrape html
     html(driver)
     
-    #scrape manifest
-    manifest(driver)
+    #scrape link_rel
+    link_rel(driver)
     
     #scraper scripts
     scripts(driver)
