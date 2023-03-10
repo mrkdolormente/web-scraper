@@ -1,127 +1,36 @@
 import os
-import re
-import wget
 
 from dotenv import main
 
 from selenium import webdriver
-from selenium.webdriver.common.keys import Keys
-from selenium.webdriver.common.by import By
 from selenium.webdriver.chrome.service import Service
 
-from utils.directory import create_directory, create_directories
-from utils.files import write
-
+from utils.directory import create_directory
+from utils.scraper import fonts, html, scripts
 
 main.load_dotenv()
-
-website_link = os.getenv('WEBSITE_LINK')
-parent_folder = os.getenv('PARENT_FOLDER')
-
-# start web driver
-driver = webdriver.Chrome(service=Service(os.getenv('CHROME_DRIVER_PATH')))
-
-print('START:: HTML')
-
-driver.get(website_link)
-assert "Class Central" in driver.title
-
-driver.execute_script("window.scrollTo(0,document.body.scrollHeight)")
-
-# generate scraped directory
-create_directory(parent_folder)
-
-html = driver.page_source
-index_file = parent_folder + '/index.html'
-
-# create index file
-write(index_file, 'w', '<!DOCTYPE html>')
-write(index_file, 'a',html )
-
-# scrape links
-links = driver.find_elements(By.TAG_NAME, 'a')
-
-link_details = [];
-
-for link in links:
-    href = link.get_attribute('href')
-    path = href.replace(website_link, '')
     
-    if website_link in href and path:
-        link_details.append({
-            'href': href,
-            'path': path
-        })
-        
-counter = 0;
-        
-for detail in link_details:
-    href = detail['href']
-    path = detail['path']
+def main():
+
+    # start web driver
+    driver = webdriver.Chrome(service=Service(os.getenv('CHROME_DRIVER_PATH')))
     
+    # generate scraped directory
+    create_directory(os.getenv('PARENT_FOLDER'))
     
-    counter += 1;
-    print('SCRAPING::', href, path, counter, len(link_details))
+    # scrape fonts
+    fonts(driver)
     
-    driver.get(href)
-        
-    relative_path = parent_folder + '/' + path;
-    inner_index_file = relative_path + '/' + 'index.html'
-    inner_html = driver.page_source
+    #scrape html
+    html(driver)
     
-    create_directories(relative_path) 
+    #scraper scripts
+    scripts(driver)
     
-    # create index file
-    write(inner_index_file, 'w', '<!DOCTYPE html>')
-    write(inner_index_file, 'a', inner_html )
-    
-print('FINISHED:: HTML')
+    assert "No results found." not in driver.page_source
 
-print('START:: FILES')
+    # close web driver
+    driver.close()
 
-driver.get(website_link)
-assert "Class Central" in driver.title
-
-file_links = [];
-
-script_links = [];
-script_elements = driver.find_elements(By.TAG_NAME, 'script')
-
-for element in script_elements:
-    script = element.get_attribute('src')
-    print(script)
-    if website_link in script:
-        script_links.append(script.replace(website_link, ''))
-        
-file_links.extend(script_links)
-
-html = driver.page_source
-font_links = re.findall("url\(/(.*?)\) format\(\"woff2\"\)", html)
-
-file_links.extend(font_links)
-
-file_counter = 0
-downloaded_files = []
-
-for link in file_links:
-    file = link
-    
-    if file not in downloaded_files:
-        file_folders = file.split('/')
-        file_folders.pop();
-        
-        create_directories(parent_folder + '/' + '/'.join(file_folders))
-        
-        wget.download(website_link + file, parent_folder + '/' + file)
-        
-        downloaded_files.append(file)
-        
-        file_counter += 1
-        print('DOWNLOADED::', parent_folder + '/' + file, file_counter, len(file_links))
-        
-print('FINISHED:: FILES')
-
-assert "No results found." not in driver.page_source
-
-# close web driver
-driver.close()
+if __name__ == "__main__":
+    main()
