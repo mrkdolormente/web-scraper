@@ -41,7 +41,7 @@ def html(driver):
     links = driver.find_elements(By.TAG_NAME, 'a')
     link_details_list = []
     
-    scraper_html_file = parent_folder + '/files/scraper_html.json'
+    scraper_html_file = 'files/scraper_html.json'
 
     retry = 0
     trigger = True
@@ -55,7 +55,7 @@ def html(driver):
             
                 link_details_list = json.load(f)
             else:
-                create_directories(parent_folder + '/files')
+                create_directories('files')
                 
                 link_counter = 0
                 
