@@ -1,4 +1,5 @@
 import os
+import json
 import re
 
 from dotenv import main
@@ -38,43 +39,87 @@ def html(driver):
 
     # scrape links
     links = driver.find_elements(By.TAG_NAME, 'a')
+    link_details_list = []
+    
+    scraper_html_file = parent_folder + '/files/scraper_html.json'
 
-    link_details = [];
-
-    for link in links:
-        href = link.get_attribute('href')
-        path = href.replace(website_link, '')
-        
-        if website_link in href and path:
-            link_details.append({
-                'href': href,
-                'path': path
-            })
+    retry = 0
+    trigger = True
+    
+    while trigger:
+        try:
+            print('ISFILE::', os.path.isfile(scraper_html_file))
             
-    counter = 0;
+            if os.path.isfile(scraper_html_file):
+                f = open(scraper_html_file)
             
-    for detail in link_details:
-        href = detail['href']
-        path = detail['path']
-        
-        
-        counter += 1;
-        print('SCRAPING::', href, path, counter, len(link_details))
-        
-        driver.get(href)
+                link_details_list = json.load(f)
+            else:
+                create_directories(parent_folder + '/files')
+                
+                link_counter = 0
+                
+                for link in links:
+                    href = link.get_attribute('href')
+                    path = href.replace(website_link, '')
+                    
+                    link_counter += 1
+                    
+                    if website_link in href and path:
+                        link_details_list.append({
+                            'id': link_counter,
+                            'href': href,
+                            'path': path,
+                            'is_scraped': False
+                        })
+                        
+                write(scraper_html_file, 'w', json.dumps(link_details_list))
+                
+            link_details = [x for x in link_details_list if x['is_scraped'] == False]
+                        
+            counter = 0
+                        
+            for detail in link_details:
+                href = detail['href']
+                path = detail['path']
+                key = detail['id']
+                
+                
+                counter += 1;
+                print('SCRAPING::', href, path, counter, len(link_details))
+                
+                driver.get(href)
+                    
+                relative_path = parent_folder + '/' + path;
+                inner_index_file = relative_path + '/' + 'index.html'
+                inner_html = driver.page_source
+                
+                create_directories(relative_path) 
+                
+                # translate page to hindi
+                translated_html = page(inner_html, language)
+                
+                # create index file
+                write(inner_index_file, 'w', '<!DOCTYPE html>')
+                write(inner_index_file, 'a', translated_html, "utf-8" ) 
+                
+                link_details_list[key] = {
+                    **detail,
+                    'is_scraped': True
+                }
+                
+                write(scraper_html_file, 'w', json.dumps(link_details_list))
+                
+            trigger = False
+        except Exception as error:
+            retry += 1
+            trigger = retry <= 3
             
-        relative_path = parent_folder + '/' + path;
-        inner_index_file = relative_path + '/' + 'index.html'
-        inner_html = driver.page_source
-        
-        create_directories(relative_path) 
-        
-        # translate page to hindi
-        translated_html = page(inner_html, language)
-        
-        # create index file
-        write(inner_index_file, 'w', '<!DOCTYPE html>')
-        write(inner_index_file, 'a', translated_html, "utf-8" )
+            print('RETRY::', retry)
+            
+            if not trigger:
+                print('RETRY::ERROR', error)
+            
         
     print('FINISHED:: HTML')
 
