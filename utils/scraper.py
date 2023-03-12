@@ -7,10 +7,9 @@ from dotenv import main
 from selenium.webdriver.common.by import By
 
 from utils.directory import create_directories
-from utils.files import write, download
+from utils.files import write, download, open_list
+from utils.helper import update_link_files, get_links
 from utils.translate import page
-
-
 
 main.load_dotenv()
 
@@ -22,6 +21,21 @@ def html(driver):
 
     driver.get(website_link)
     assert "Class Central" in driver.title
+    
+    file_link_details = [
+        {
+            'path': 'files/scraper_js.json',
+            'in_filter': ['.js']
+        },
+        {
+            'path': 'files/scraper_files.json',
+            'in_filter': ['.png', '.svg', '.webmanifest', '.woff2']
+        },
+    ]
+    
+    # update link files to be use for script and files downloading and scraping
+    index_links = get_links(driver)
+    update_link_files(index_links, file_link_details)
 
     driver.execute_script("window.scrollTo({ left: 0, top: document.body.scrollHeight, behavior: \"smooth\" })")
 
@@ -31,7 +45,7 @@ def html(driver):
     language = os.getenv('TRANSLATE_LANG')
     
     # translate page to hindi
-    translated_html = page(html, language)
+    translated_html = page(html, language, convert_links=True)
 
     # create index file
     write(index_file, 'w', '<!DOCTYPE html>')
@@ -55,8 +69,6 @@ def html(driver):
             
                 link_details_list = json.load(f)
             else:
-                create_directories('files')
-                
                 link_counter = 0
                 
                 for link in links:
@@ -65,7 +77,9 @@ def html(driver):
                     
                     link_counter += 1
                     
-                    if website_link in href and path:
+                    is_exist = len([x for x in link_details_list if x['path'] == path]) != 0
+                    
+                    if website_link in href and path and not is_exist:
                         link_details_list.append({
                             'id': link_counter,
                             'href': href,
@@ -89,6 +103,10 @@ def html(driver):
                 print('SCRAPING::', href, path, counter, len(link_details))
                 
                 driver.get(href)
+                
+                # update link files to be use for script and files downloading and scraping
+                inner_links = get_links(driver)
+                update_link_files(inner_links, file_link_details)
                     
                 relative_path = parent_folder + '/' + path;
                 inner_index_file = relative_path + '/' + 'index.html'
@@ -97,7 +115,7 @@ def html(driver):
                 create_directories(relative_path) 
                 
                 # translate page to hindi
-                translated_html = page(inner_html, language)
+                translated_html = page(inner_html, language, convert_links=True)
                 
                 # create index file
                 write(inner_index_file, 'w', '<!DOCTYPE html>')
@@ -118,8 +136,7 @@ def html(driver):
             print('RETRY::', retry)
             
             if not trigger:
-                print('RETRY::ERROR', error)
-            
+                print('RETRY::ERROR', error)    
         
     print('FINISHED:: HTML')
 
@@ -141,11 +158,12 @@ def fonts(driver):
         if font not in downloaded_fonts:
             font_folders = font.split('/')
             font_folders.pop();
+            font_folders.insert(0, parent_folder)
             
             font_counter += 1
-            print('DOWNLOADING::', parent_folder + '/' + font, font_counter, len(font_folders))
+            print('DOWNLOADING::', parent_folder + '/' + font, font_counter, len(downloaded_fonts))
             
-            create_directories(parent_folder + '/' + '/'.join(font_folders))
+            create_directories('/'.join(font_folders))
             print(website_link + font, parent_folder + '/' + font)
             
             response = download(website_link + font)
@@ -154,30 +172,44 @@ def fonts(driver):
             
     print('FINISHED:: FONTS')
     
+def files():
+    print('START:: FILES')
+
+    files_link = open_list('files/scraper_files.json')
+
+    files_counter = 0
+
+    for link in files_link:
+        folders = link.replace(website_link, '').split('/')
+        folders.pop()
+        folders.insert(0, parent_folder)
+        
+        files_counter += 1
+        
+        create_directories('/'.join(folders))
+        
+        print('DOWNLOAD::', files_counter, len(files_link))
+        response = download(link)
+        
+        write(parent_folder + '/' + link.replace(website_link, ''), 'wb', response.content)
+            
+    print('FINISHED:: FILES')
+    
 def scripts(driver):
     print('START:: SCRIPTS')
     
-    driver.get(website_link)
-    assert "Class Central" in driver.title
-    
-    create_directories(parent_folder + '/' + 'webpack')
-    
-    script_links = [];
-    script_elements = driver.find_elements(By.TAG_NAME, 'script')
-
-    for element in script_elements:
-        script = element.get_attribute('src')
-        if website_link in script:
-            script_links.append({
-                'href': script,
-                'path': script.replace(website_link, '')
-            })
+    script_links = open_list('files/scraper_js.json')
             
     script_counter = 0
             
     for script in script_links:
-        href = script['href']
-        path = script['path']
+        href = script
+        
+        folders = script.replace(website_link, '').split('/')
+        folders.pop()
+        folders.insert(0, parent_folder)
+        
+        create_directories('/'.join(folders))
         
         script_counter += 1
         print('SCRAPING::', href, script_counter, len(script_links))
@@ -186,7 +218,7 @@ def scripts(driver):
         
         script_element = driver.find_element(By.TAG_NAME, 'pre')
         jsscript = script_element.get_attribute('innerText')
-        write(parent_folder + '/' + path, 'w', jsscript, 'utf-8')
+        write(parent_folder + '/' + script.replace(website_link, ''), 'w', jsscript, 'utf-8')
 
     print('FINISHED:: SCRIPTS')
     
