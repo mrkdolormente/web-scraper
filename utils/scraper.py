@@ -1,138 +1,205 @@
 import os
 import re
-import requests
+import time
 
 from dotenv import main
 
 from selenium.webdriver.common.by import By
 
 from utils.directory import create_directories
-from utils.files import write
-
+from utils.files import write, download, open_list
+from utils.helper import update_link_files, get_links
+from utils.translate import page
 
 main.load_dotenv()
 
 website_link = os.getenv('WEBSITE_LINK')
 parent_folder = os.getenv('PARENT_FOLDER')
 
-def html(driver):
+def html(driver, files_only=False, scripts_only=False):
     print('START:: HTML')
 
     driver.get(website_link)
     assert "Class Central" in driver.title
+    
+    file_link_details = []
+    
+    include_html = (not files_only and not scripts_only)
+    
+    if files_only or include_html:
+        file_link_details.append({
+            'path': 'files/scraper_files.json',
+            'in_filter': ['.png', '.svg', '.webmanifest', '.woff2'],
+            'not_in_filter': ['catalog-iframe']
+        })
+        
+    if scripts_only or include_html:
+        file_link_details.append({
+            'path': 'files/scraper_js.json',
+            'in_filter': ['.js'],
+            'not_in_filter': ['catalog-iframe']
+        })
+    
+    # update link files to be use for script and files downloading and scraping
+    if len(file_link_details) != 0:
+        index_links = get_links(driver)
+        update_link_files(index_links, file_link_details)
 
-    driver.execute_script("window.scrollTo(0,document.body.scrollHeight)")
+    if include_html:
+        html = driver.page_source
+        index_file = parent_folder + '/index.html'
+        
+        language = os.getenv('TRANSLATE_LANG')
+        
+        # translate page to hindi
+        translated_html = page(html, language, convert_links=True)
 
-    html = driver.page_source
-    index_file = parent_folder + '/index.html'
-
-    # create index file
-    write(index_file, 'w', '<!DOCTYPE html>')
-    write(index_file, 'a', html)
+        # create index file
+        write(index_file, 'w', '<!DOCTYPE html>')
+        write(index_file, 'a', translated_html, 'utf-8')
 
     # scrape links
     links = driver.find_elements(By.TAG_NAME, 'a')
+    link_details_list = []
 
-    link_details = [];
-
-    for link in links:
-        href = link.get_attribute('href')
-        path = href.replace(website_link, '')
-        
-        if website_link in href and path:
-            link_details.append({
-                'href': href,
-                'path': path
-            })
+    retry = 0
+    trigger = True
+    
+    while trigger:
+        try:
+            for link in links:
+                href = link.get_attribute('href')
+                path = href.replace(website_link, '')
+                
+                is_exist = len([x for x in link_details_list if x['path'] == path]) != 0
+                
+                if website_link in href and path and not is_exist:
+                    link_details_list.append({
+                        'href': href,
+                        'path': path
+                    })
+                    
+            link_details = []
             
-    counter = 0;
+            if len(file_link_details) != 0 and not include_html:
+                link_details = link_details_list
+            else:
+                link_details = [x for x in link_details_list if not os.path.exists(parent_folder + '/' + x['path'])]
+                
+                        
+            counter = 0
+                        
+            for detail in link_details:
+                href = detail['href']
+                path = detail['path']
+                
+                counter += 1;
+                print('SCRAPING::', href, path, counter, len(link_details))
+                
+                driver.get(href)
+                time.sleep(3)
+                
+                # update link files to be use for script and files downloading and scraping
+                if len(file_link_details) != 0:
+                    inner_links = get_links(driver)
+                    update_link_files(inner_links, file_link_details)
+                    
+                if include_html:
+                    relative_path = parent_folder + '/' + path;
+                    inner_index_file = relative_path + '/' + 'index.html'
+                    inner_html = driver.page_source
+                    
+                    # translate page to hindi
+                    translated_html = page(inner_html, language, convert_links=True)
+                    
+                    create_directories(relative_path) 
+                    
+                    # create index file
+                    write(inner_index_file, 'w', '<!DOCTYPE html>')
+                    write(inner_index_file, 'a', translated_html, "utf-8" ) 
+                
+            trigger = False
+        except Exception as error:
+            retry += 1
+            trigger = retry <= 3
             
-    for detail in link_details:
-        href = detail['href']
-        path = detail['path']
-        
-        
-        counter += 1;
-        print('SCRAPING::', href, path, counter, len(link_details))
-        
-        driver.get(href)
+            print('RETRY::', retry)
             
-        relative_path = parent_folder + '/' + path;
-        inner_index_file = relative_path + '/' + 'index.html'
-        inner_html = driver.page_source
-        
-        create_directories(relative_path) 
-        
-        # create index file
-        write(inner_index_file, 'w', '<!DOCTYPE html>')
-        write(inner_index_file, 'a', inner_html, "utf-8" )
+            if not trigger:
+                print('RETRY::ERROR', error)    
         
     print('FINISHED:: HTML')
+    
+def files():
+    print('START:: FILES')
 
-def fonts(driver):
-    print('START:: FONTS')
+    files_link = open_list('files/scraper_files.json')
 
-    driver.get(website_link)
-    assert "Class Central" in driver.title
+    files_counter = 0
 
-    html = driver.page_source
-    font_links = re.findall("url\(/(.*?)\) format\(\"woff2\"\)", html)
-
-    font_counter = 0
-    downloaded_fonts = []
-
-    for link in font_links:
-        font = link
+    for link in files_link:
+        folders = link.replace(website_link, '').split('/')
+        folders.pop()
+        folders.insert(0, parent_folder)
         
-        if font not in downloaded_fonts:
-            font_folders = font.split('/')
-            font_folders.pop();
+        files_counter += 1
+        
+        create_directories('/'.join(folders))
+        
+        print('DOWNLOAD::', files_counter, len(files_link))
+        response = download(link)
+        
+        write(parent_folder + '/' + link.replace(website_link, ''), 'wb', response.content)
             
-            font_counter += 1
-            print('DOWNLOADING::', parent_folder + '/' + font, font_counter, len(font_folders))
-            
-            create_directories(parent_folder + '/' + '/'.join(font_folders))
-            print(website_link + font, parent_folder + '/' + font)
-            
-            headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 6.1; WOW64; rv:50.0) Gecko/20100101 Firefox/50.0'}
-            response = requests.get(website_link + font, headers=headers)
-            
-            write(parent_folder + '/' + font, 'wb', response.content)
-            
-    print('FINISHED:: FONTS')
+    print('FINISHED:: FILES')
     
 def scripts(driver):
     print('START:: SCRIPTS')
     
-    driver.get(website_link)
-    assert "Class Central" in driver.title
-    
-    create_directories(parent_folder + '/' + 'webpack')
-    
-    script_links = [];
-    script_elements = driver.find_elements(By.TAG_NAME, 'script')
-
-    for element in script_elements:
-        script = element.get_attribute('src')
-        if website_link in script:
-            script_links.append({
-                'href': script,
-                'path': script.replace(website_link, '')
-            })
+    script_links = open_list('files/scraper_js.json')
             
     script_counter = 0
             
     for script in script_links:
-        href = script['href']
-        path = script['path']
+        href = script
+        
+        folders = script.replace(website_link, '').split('/')
+        folders.pop()
+        folders.insert(0, parent_folder)
+        
+        create_directories('/'.join(folders))
         
         script_counter += 1
         print('SCRAPING::', href, script_counter, len(script_links))
         
         driver.get(href)
+        time.sleep(3)
         
         script_element = driver.find_element(By.TAG_NAME, 'pre')
         jsscript = script_element.get_attribute('innerText')
-        write(parent_folder + '/' + path, 'w', jsscript, 'utf-8')
+        
+        write(parent_folder + '/' + script.split('?')[0].replace(website_link, ''), 'w', jsscript, 'utf-8')
 
     print('FINISHED:: SCRIPTS')
+    
+def link_rel(driver):
+    print('START:: LINK_REL')
+    
+    driver.get(website_link)
+    assert "Class Central" in driver.title
+    
+    rel_list = ['manifest', 'apple-touch-icon', 'icon', 'mask-icon', 'search']
+    
+    for rel in rel_list:
+        script_element = driver.find_element(By.CSS_SELECTOR, 'link[rel="'+ rel +'"]')
+        
+        if script_element:
+            href = script_element.get_attribute('href')
+            
+            print('DOWNLOADING::', rel, href)
+            
+            response = download(href)
+            
+            write(parent_folder + '/' + href.replace(website_link, ''), 'wb', response.content)
+    
+    print('FINISHED:: LINK_REL')
