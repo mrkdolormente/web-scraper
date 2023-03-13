@@ -16,10 +16,10 @@ def update_link_files(list, file_details=[]):
     
     for item in file_details:
         in_filter = item['in_filter']
+        not_in_filter = item['not_in_filter']
         filepath = item['path']
         
-        links = [x['url'] for x in list if in_list(x['url'], in_filter)]
-        print(links)
+        links = [x['url'] for x in list if in_list(x['url'], in_filter) and not in_list(x['url'], not_in_filter)]
         
         file_details_list = []
         
@@ -42,7 +42,6 @@ def get_links(driver):
     return list(map(__logs_attributes, network_response_logs))
 
 def in_list(text, list=[]):
-    print(text, list, '.manifest' in text)
     return len([x for x in list if x in text]) != 0
     
 def __is_onsite(x):
